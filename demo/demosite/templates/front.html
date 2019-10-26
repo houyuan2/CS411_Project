@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<body>
+    
+      <header>
+          <h1 class="title"> Matcha Apartment</h1>
+      </header>
+        <form method="POST" class="post-form" action="/emp">  
+        {% csrf_token %}  
+        <label> Apartment Name: </label> {{form.apart_name}}
+        <br>
+        <label> Apartment Address: </label> {{form.apart_addr}}
+        <button type="submit"> Submit </button>>
+        </form>
+         
+    </body>
+    </html>
