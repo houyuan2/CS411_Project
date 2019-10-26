@@ -16,9 +16,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from demosite import views
+from django.urls import path, include
 
 urlpatterns = [
+    #path('', urls),#
+    # path('', include('demosite.urls')),
+    # path('api/keytable', views.KeyTableListCreate.as_view() ),
     path('admin/', admin.site.urls),
     path('room_key', views.room_key),
-    path('show',views.show)
+    path('show',views.show),
+    path('test_insert', views.test_insert),
+    path('test_delete', views.test_delete),
+    path('test_update', views.test_update),
+    path('test_post', views.test_get),
+    path('insert', views.insert),
+    path('delete', views.delete)
 ]

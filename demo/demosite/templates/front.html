@@ -1,17 +1,53 @@
-<!doctype html>
-<html>
-<body>
-    
-      <header>
-          <h1 class="title"> Matcha Apartment</h1>
-      </header>
-        <form method="POST" class="post-form" action="/emp">  
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+    <meta charset="UTF-8">  
+    <title>Index</title>  
+    {% load staticfiles %}  
+    <link rel="stylesheet" href="{% static 'css/style.css' %}"/>  
+</head>  
+<body>  
+<form method="POST" class="post-form" action="/room_key">  
         {% csrf_token %}  
-        <label> Apartment Name: </label> {{form.apart_name}}
-        <br>
-        <label> Apartment Address: </label> {{form.apart_addr}}
-        <button type="submit"> Submit </button>>
-        </form>
-         
-    </body>
-    </html>
+    <div class="container">  
+<br>  
+    <div class="form-group row">  
+    <label class="col-sm-1 col-form-label"></label>  
+    <div class="col-sm-4">  
+    <h3>Enter Details</h3>  
+    </div>  
+  </div>  
+    <div class="form-group row">  
+    <label class="col-sm-2 col-form-label">apart_name:</label>  
+    <div class="col-sm-4">  
+      {{ form.apart_name }}  
+    </div>  
+  </div>  
+  <div class="form-group row">  
+    <label class="col-sm-2 col-form-label">apart_addr:</label>  
+    <div class="col-sm-4">  
+      {{ form.apart_addr }}  
+    </div>  
+  </div>  
+    <div class="form-group row">  
+    <label class="col-sm-2 col-form-label">apart_key:</label>  
+    <div class="col-sm-4">  
+      {{ form.apart_key }}  
+    </div>  
+  </div>  
+    <div class="form-group row">  
+    <label class="col-sm-2 col-form-label">room_key:</label>  
+    <div class="col-sm-4">  
+      {{ form.room_key }}  
+    </div>  
+  </div>
+    <div class="form-group row">  
+    <label class="col-sm-1 col-form-label"></label>  
+    <div class="col-sm-4">  
+    <button type="submit" class="btn btn-primary">Submit</button>  
+    </div>  
+  </div>  
+    </div>  
+</form>  
+</body>  
+</html>  
