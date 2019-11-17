@@ -14,21 +14,36 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
-from demosite import views
 from django.urls import path, include
+from demosite import views
+
+from django.conf.urls import url, include
+#from api.resources import KeyTableResource
+
+#keytable_resource = KeyTableResource()
+
 
 urlpatterns = [
-    #path('', urls),#
-    # path('', include('demosite.urls')),
-    # path('api/keytable', views.KeyTableListCreate.as_view() ),
+    path('api/keytable', views.KeyTableListCreate.as_view() ),
     path('admin/', admin.site.urls),
-    path('room_key', views.room_key),
+    #path('room_key', views.room_key),
+    #url(r'admin/', admin.site.urls),
+    #url(r'^api/', include(keytable_resource.urls)),
+    #path('', include('api.urls')),
     path('show',views.show),
     path('test_insert', views.test_insert),
     path('test_delete', views.test_delete),
     path('test_update', views.test_update),
-    path('test_post', views.test_get),
+    path('test_get', views.test_get),
+    path('test_get_rooms_count', views.test_get_rooms_count),
+    path('test_get_apart_with_parking_and_study_room', views.test_get_apart_with_parking_and_study_room),
     path('insert', views.insert),
-    path('delete', views.delete)
+    path('delete', views.delete),
+    path('update', views.update),
+    path('test_apt_feature_insert', views.test_apt_feature_insert),
+    path('test_apt_feature_delete', views.test_apt_feature_delete),
+    path('apt_feature_insert', views.apt_feature_insert),
+    path('apt_feature_delete', views.apt_feature_delete),
+    path('get_rooms_count', views.get_rooms_count),
+    path('get_apart_with_parking_and_study_room', views.get_apart_with_parking_and_study_room)
 ]

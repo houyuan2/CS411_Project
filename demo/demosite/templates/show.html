@@ -22,6 +22,28 @@
         </tbody>  
     </table>  
     <br>  
+    <table class="table1 table-striped table-bordered table-sm">  
+        <thead class="thead-dark1">  
+        <tr>  
+            <th>Apartment Key</th>  
+            <th>Apartment Parking</th>  
+            <th>Apartment Study Room</th>  
+            <th>Apartment Lounge</th>  
+            <th>Apartment Front Desk</th> 
+        </tr>  
+        </thead>  
+        <tbody>  
+    {% for apartmentfeature in apartmentfeatures %}  
+        <tr>  
+            <td>{{ apartmentfeature.apart_key }}</td>  
+            <td>{{ apartmentfeature.parking }}</td>  
+            <td>{{ apartmentfeature.study_room }}</td>  
+            <td>{{ apartmentfeature.lounge }}</td>  
+            <td>{{ apartmentfeature.front_desk }}</td>  
+        </tr>  
+    {% endfor %}  
+        </tbody>  
+    </table>  
     <br>  
     <center><a href="/room_key" class="btn btn-primary">Add New Record</a></center>
 
