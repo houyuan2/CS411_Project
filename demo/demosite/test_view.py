@@ -99,3 +99,126 @@ def test_get_apart_with_parking_and_study_room(request):
     cursor.close()
     keytables = KeyTable.objects.all()
     return render(request, 'show.html', {'keytables':keytables})
+
+## after midterm demo
+
+def test_roomfeature_insert(request):
+    room_key = 1
+    cover_internet_fee = 1
+    cover_electricity_fee = 0
+    private_washing_machine = 1
+    number_of_bedroom = 2
+    number_of_bathroom = 1
+    has_kitchen = 1
+    has_refigerator = 1
+    cover_water_fee = 0
+    has_tv = 1
+    size = 923
+    column_list = [room_key, cover_internet_fee, cover_electricity_fee, private_washing_machine,
+        number_of_bedroom, number_of_bathroom, has_kitchen, has_refigerator, cover_water_fee, has_tv,
+        size]
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO     demosite_roomfeature(room_key, cover_internet_fee, cover_electricity_fee, \
+        private_washing_machine, number_of_bedroom, number_of_bathroom, has_kitchen, has_refigerator, \
+        cover_water_fee, has_tv, size) \
+                    VALUES          (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", column_list)
+    keytables = KeyTable.objects.all()
+    cursor.close()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_roomfeature_delete(request):
+    room_key = 1
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM     demosite_roomfeature \
+                    WHERE           room_key = %s", [room_key])
+    cursor.close()
+    keytables = KeyTable.objects.all()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_distancetable_insert(request):
+    apart_key = "HERE" 
+    dest_addr = "siebel"
+    distance = 3.7
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO     demosite_distancetable(apart_key, dest_addr, distance) \
+                    VALUES          (%s, %s, %s)", [apart_key, dest_addr, distance])
+    keytables = KeyTable.objects.all()
+    cursor.close()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_distancetable_delete(request):
+    search_id = 1
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM     demosite_distancetable \
+                    WHERE           search_id = %s", [search_id])
+    cursor.close()
+    keytables = KeyTable.objects.all()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_ratingtable_insert(request):
+    apart_key = "HERE"
+    env_rating = 1.1
+    ppl_rating = 2.0
+    rest_05_count = 0
+    rest_1_count = 0
+    rest_2_count = 0
+    shop_05_count = 0
+    shop_1_count = 0
+    shop_2_count = 0
+    column_list = [apart_key, env_rating, ppl_rating, rest_05_count, rest_1_count, rest_2_count,
+        shop_05_count, shop_1_count, shop_2_count]
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO     demosite_ratingtable(apart_key, env_rating, ppl_rating, rest_05_count, rest_1_count, \
+        rest_2_count, shop_05_count, shop_1_count, shop_2_count) \
+                    VALUES          (%s, %s, %s, %s, %s, %s, %s, %s, %s)", column_list)
+    keytables = KeyTable.objects.all()
+    cursor.close()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_ratingtable_delete(request):
+    apart_key = "HERE"
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM     demosite_ratingtable \
+                    WHERE           apart_key = %s", [apart_key])
+    cursor.close()
+    keytables = KeyTable.objects.all()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_peoplerating_insert(request):
+    apart_key = "HERE"
+    rating = 3.4
+    comment = "this is a test comment"
+    nick_name = "test_nick_name"
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO     demosite_peoplerating(apart_key, rating, comment, nick_name) \
+                    VALUES          (%s, %s, %s, %s)", [apart_key, rating, comment, nick_name])
+    keytables = KeyTable.objects.all()
+    cursor.close()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def test_peoplerating_delete(request):
+    comment_id = 1
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM     demosite_peoplerating \
+                    WHERE           comment_id = %s", [comment_id])
+    cursor.close()
+    keytables = KeyTable.objects.all()
+    return render(request, 'show.html', {'keytables':keytables})
+
+def frankie_get_addr(apart_key):
+    cursor = connection.cursor()
+    cursor.execute("SELECT      f.apart_addr \
+                    FROM        demosite_apartmentfeature f \
+                    WHERE       f.apart_key = %s", apart_key)
+    entry = cursor.fetchall()
+    print(entry)
+    cursor.close()
+
+def frankie_get_distance(dest_addr):
+    cursor = connection.cursor()
+    cursor.execute("SELECT      t.distance \
+                    FROM        demosite_distancetable t \
+                    WHERE       t.dest_addr = %s", dest_addr)
+    entry = cursor.fetchall()
+    print(entry)
+    cursor.close()

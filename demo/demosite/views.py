@@ -14,30 +14,9 @@ from rest_framework import generics
 
 from .serializers import KeyTableSerializer#, ApartmentFeatureSerializer
 
-#def room_key(request):
-    # insert a room key_table entry into key_table
-    # 
-    #if request.method == "POST": #and request.value == "Submit":
-    #    form = KeyForm(request.POST)
-    #    if form.is_valid():
-
-    #        try:
-     #           print(form.apart_name)
-    #            form.save()
-    #            return redirect('/show')  #to be implemented
-    #        except:
-   #             pass
-   # else:
-   #     form = KeyForm()
-   #  return render(request, 'front.html' , {'form':form})
-
 class KeyTableListCreate(generics.ListCreateAPIView):
     queryset = KeyTable.objects.all()
     serializer_class = KeyTableSerializer
-
-#class ApartmentFeatureListCreate(generics.ListCreateAPIView):
-#    queryset = ApartmentFeature.objects.all()
-#    serializer_class = ApartmentFeatureSerializer
 
 def show(request):
     if request.method == "GET": 
@@ -47,114 +26,7 @@ def show(request):
         #data2 = serializers.serialize("json", apartmentfeatures)
         return render(request, 'show.html', {'keytables':keytables, 'apartmentfeatures':apartmentfeatures})
 
-def test_insert(request):
-    apart_name = "Presby"
-    apart_addr = "405 East John Street"
-    apart_key = apart_name.upper()
-    cursor = connection.cursor()
-    cursor.execute("INSERT INTO     demosite_keytable(apart_name, apart_addr, apart_key) \
-                    VALUES          (%s, %s, %s)", [apart_name, apart_addr, apart_key])
-    keytables = KeyTable.objects.all()
-    return render(request, 'show.html', {'keytables':keytables})
-
-def test_delete(request):
-    room_key = 6
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM     demosite_keytable \
-                    WHERE           demosite_keytable.room_key = %s", [room_key])
-    cursor.close()
-    keytables = KeyTable.objects.all()
-    return render(request, 'show.html', {'keytables':keytables})
-
-def test_update(request):
-    room_key = 2
-    apart_name = "Campus Center"
-    apart_addr = "601 South 6TH Street"
-    apart_key = apart_name.upper()
-    cursor = connection.cursor()
-    cursor.execute("UPDATE     demosite_keytable \
-                    SET        apart_name = %s, apart_addr = %s, apart_key = %s \
-                    WHERE      room_key = %s", [apart_name, apart_addr, apart_key, room_key])
-    cursor.close()
-    keytables = KeyTable.objects.all()
-    return render(request, 'show.html', {'keytables':keytables})
-
-def test_get(request):
-    room_key = 5
-    cursor = connection.cursor()
-    cursor.execute("SELECT    * \
-                    FROM      demosite_keytable \
-                    WHERE     room_key > %s", [room_key])
-    keytable_entry = cursor.fetchall()
-    print(keytable_entry)
-    cursor.close()
-    keytables = KeyTable.objects.all()
-    return render(request, 'show.html', {'keytables':keytables})
-
-def test_apt_feature_insert(request):
-    apart_key = "PRESBY" 
-    parking = 0 
-    study_room = 0
-    lounge = 1 
-    front_desk = 1
-    cursor = connection.cursor()
-    cursor.execute("INSERT INTO     demosite_apartmentfeature(apart_key, parking, study_room, lounge, front_desk) \
-                    VALUES          (%s, %s, %s, %s, %s)", [apart_key, parking, study_room, lounge, front_desk])
-    apartfeature = ApartmentFeature.objects.all()
-    cursor.close()
-    return render(request, 'show.html', {'apartmentfeatures':apartfeature})
-
-def test_apt_feature_delete(request):
-    apart_key = "PRESBY"
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM     demosite_apartmentfeature \
-                    WHERE           apart_key = %s", [apart_key])
-    cursor.close()
-    apartfeature = ApartmentFeature.objects.all()
-    return render(request, 'show.html', {'apartmentfeatures':apartfeature})
-
-def test_get_rooms_count(request):
-    num = 0
-    try:
-        apart_name = "latitude"
-        apart_key = apart_name.upper()
-        cursor = connection.cursor()
-        cursor.execute("SELECT    COUNT(*) \
-                        FROM      demosite_keytable\
-                        GROUP BY  apart_key \
-                        HAVING    apart_key = %s", [apart_key])
-        result = cursor.fetchall()
-        cursor.close()
-        #print(result)
-        num = tuple(result)[0][0]
-    except:
-        print("apartment doesn't exist")
-    print(num)
-    keytables = KeyTable.objects.all()
-    apartfeature = ApartmentFeature.objects.all()
-    return render(request, 'show.html', {'keytables':keytables, 'apartmentfeatures':apartfeature})
-
-def test_get_apart_with_parking_and_study_room(request): 
-    cursor = connection.cursor()
-    cursor.execute("SELECT DISTINCT a.apart_name FROM \
-                    (SELECT            apart_name \
-                    FROM              demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
-                    GROUP BY          apart_key, apart_name, parking\
-                    HAVING            parking = 1) a \
-                    INNER JOIN \
-                    (SELECT            apart_name \
-                    FROM              demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
-                    GROUP BY          apart_key, apart_name, study_room \
-                    HAVING            study_room = 1) b \
-                    ON (a.apart_name = b.apart_name)")
-    keytable_entry = cursor.fetchall()
-    print(keytable_entry)
-    cursor.close()
-    keytables = KeyTable.objects.all()
-    apartfeature = ApartmentFeature.objects.all()
-    return render(request, 'show.html', {'keytables':keytables, 'apartmentfeatures':apartfeature})
-
-def insert(request):
+def keytable_insert(request):
     if request.method=='POST': #and request.value == "insert":
             #aptdata = request.POST.copy() #ProfileForm(request.POST, instance=request.user)
             #aptdata = json.loads(request.body.decode("utf-8"))
@@ -177,7 +49,7 @@ def insert(request):
 
 # Create your views here.
 
-def delete(request):
+def keytable_delete(request):
     if request.method=='POST':
             todo = json.loads(request.body.decode("utf-8"))
             room_key = todo['deleteroom']['roomkey']
@@ -188,7 +60,7 @@ def delete(request):
             return StreamingHttpResponse('deleted')
     return StreamingHttpResponse('it was GET request')
     
-def update(request):
+def keytable_update(request):
     if request.method=='POST':
             updatedata = json.loads(request.body.decode("utf-8"))
             apart_name = updatedata['changeapartment']['aptname']
@@ -202,10 +74,10 @@ def update(request):
             cursor.close()
             return StreamingHttpResponse('updated')
             
-def apt_feature_insert(request):
+def apartfeature_insert(request):
     if request.method=='POST':
         aptdata = json.loads(request.body.decode("utf-8")) 
-        apart_name = aptdata['newapartmentfeature']['aptname']
+        apart_name = aptdata['newapartmentfeature']['apt_name']
         parking = aptdata['newapartmentfeature']['parking']
         study_room = aptdata['newapartmentfeature']['study_room']
         lounge = aptdata['newapartmentfeature']['lounge']
@@ -222,10 +94,10 @@ def apt_feature_insert(request):
         return StreamingHttpResponse('received')
     return StreamingHttpResponse('it was GET request') 
 
-def apt_feature_delete(request):
+def apartfeature_delete(request):
     if request.method=='POST':
         aptdata = json.loads(request.body.decode("utf-8")) 
-        apart_name = aptdata['deleteapartmentfeature']['aptname']
+        apart_name = aptdata['deleteapartmentfeature']['apt_name']
         apart_key = apart_name.upper()
         cursor = connection.cursor()
         cursor.execute("DELETE FROM     demosite_apartmentfeature \
@@ -243,7 +115,7 @@ def get_rooms_count(request):
             apart_key = apart_key.upper()
             cursor = connection.cursor()
             cursor.execute("SELECT    COUNT(*) \
-                            FROM      demosite_keytable\
+                            FROM      demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
                             GROUP BY  apart_key \
                             HAVING    apart_key = %s", [apart_key])
             result = cursor.fetchall()
@@ -283,3 +155,153 @@ def get_apart_with_parking_and_study_room(request):
             print("error")
             return StreamingHttpResponse("Error") 
     return StreamingHttpResponse('it was POST request')
+
+def roomfeature_insert(request):
+    if request.method != 'GET':
+        return StreamingHttpResponse('it was POST request')
+    try: 
+        aptdata = json.loads(request.body.decode("utf-8")) 
+        room_key = int(aptdata['newroomfeature']['room_key'])
+        cover_internet_fee = int(aptdata['newroomfeature']['cover_internet_fee'])
+        cover_electricity_fee = int(aptdata['newroomfeature']['cover_electricity_fee'])
+        private_washing_machine = int(aptdata['newroomfeature']['private_washing_machine'])
+        number_of_bedroom = int(aptdata['newroomfeature']['number_of_bedroom'])
+        number_of_bathroom = int(aptdata['newroomfeature']['number_of_bathroom'])
+        has_kitchen = int(aptdata['newroomfeature']['has_kitchen'])
+        has_refigerator = int(aptdata['newroomfeature']['has_refigerator'])
+        cover_water_fee = int(aptdata['newroomfeature']['cover_water_fee'])
+        has_tv = int(aptdata['newroomfeature']['has_tv'])
+        size = int(aptdata['newroomfeature']['size'])
+        column_list = [room_key, cover_internet_fee, cover_electricity_fee, private_washing_machine,
+            number_of_bedroom, number_of_bathroom, has_kitchen, has_refigerator, cover_water_fee, has_tv,
+            size]
+        cursor = connection.cursor()
+        cursor.execute("INSERT INTO     demosite_roomfeature(room_key, cover_internet_fee, cover_electricity_fee, \
+            private_washing_machine, number_of_bedroom, number_of_bathroom, has_kitchen, has_refigerator, \
+            cover_water_fee, has_tv, size) \
+                        VALUES          (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", column_list)
+        cursor.close()
+        return StreamingHttpResponse('received')
+    except:
+        print("insert fails")
+        return StreamingHttpResponse('Error')
+
+def roomfeature_delete(request):
+    if request.method=='POST':
+        try: 
+            aptdata = json.loads(request.body.decode("utf-8")) 
+            room_key = int(aptdata['deleteroomfeature']['room_key'])
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM     demosite_roomfeature \
+                            WHERE           room_key = %s", [room_key])
+            cursor.close()
+            return StreamingHttpResponse('deleted')
+        except:
+            print("delete fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request') 
+
+def distancetable_insert(request):
+    if request.method=='POST':
+        try:
+            aptdata = json.loads(request.body.decode("utf-8"))
+            apart_key = aptdata['newdistancetable']['apart_key'].upper()
+            dest_addr = aptdata['newdistancetable']['dest_addr']
+            distance = float(aptdata['newdistancetable']['distance'])
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO     demosite_distancetable(apart_key, dest_addr, distance) \
+                            VALUES          (%s, %s, %s)", [apart_key, dest_addr, distance])
+            cursor.close()
+            return StreamingHttpResponse('received')
+        except:
+            print("insert fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request')
+
+def distancetable_delete(request):
+    if request.method=='POST':
+        try: 
+            aptdata = json.loads(request.body.decode("utf-8")) 
+            search_id = int(aptdata['deleteroomfeature']['search_id'])
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM     demosite_distancetable \
+                            WHERE           search_id = %s", [search_id])
+            cursor.close()
+            return StreamingHttpResponse('deleted')
+        except:
+            print("delete fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request')
+
+def ratingtable_insert(request):
+    if request.method=='POST':
+        try:
+            aptdata = json.loads(request.body.decode("utf-8"))
+            apart_key = aptdata['newratingtable']['apart_key'].upper()
+            env_rating = float(aptdata['newratingtable']['env_rating'])
+            ppl_rating = float(aptdata['newratingtable']['ppl_rating'])
+            rest_05_count = int(aptdata['newratingtable']['rest_05_count'])
+            rest_1_count = int(aptdata['newratingtable']['rest_1_count'])
+            rest_2_count = int(aptdata['newratingtable']['rest_2_count'])
+            shop_05_count = int(aptdata['newratingtable']['shop_05_count'])
+            shop_1_count = int(aptdata['newratingtable']['shop_1_count'])
+            shop_2_count = int(aptdata['newratingtable']['shop_2_count'])
+            column_list = [apart_key, env_rating, ppl_rating, rest_05_count, rest_1_count, rest_2_count,
+                        shop_05_count, shop_1_count, shop_2_count]
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO     demosite_ratingtable(apart_key, env_rating, ppl_rating, rest_05_count, rest_1_count, \
+                    rest_2_count, shop_05_count, shop_1_count, shop_2_count) \
+                            VALUES          (%s, %s, %s, %s, %s, %s, %s, %s, %s)", column_list)
+            return StreamingHttpResponse('received')
+        except:
+            print("insert fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request')
+
+def ratingtable_delete(request):
+    if request.method=='POST':
+        try: 
+            aptdata = json.loads(request.body.decode("utf-8")) 
+            apart_key = aptdata['deleteratingtable']['apart_key'].upper()
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM     demosite_ratingtable \
+                            WHERE           apart_key = %s", [apart_key])
+            cursor.close()
+            return StreamingHttpResponse('deleted')
+        except:
+            print("delete fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request')
+
+def peoplerating_insert(request):
+    if request.method=='POST':
+        try:
+            aptdata = json.loads(request.body.decode("utf-8"))
+            apart_key = aptdata['newpeoplerating']['apart_key'].upper()
+            rating = float(aptdata['newpeoplerating']['rating'])
+            comment = aptdata['newpeoplerating']['comment']
+            nick_name = aptdata['newpeoplerating']['nick_name']
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO     demosite_peoplerating(apart_key, rating, comment, nick_name) \
+                            VALUES          (%s, %s, %s, %s)", [apart_key, rating, comment, nick_name])
+            cursor.close()
+            return StreamingHttpResponse('received')
+        except:
+            print("insert fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request')
+
+def peoplerating_delete(request):
+    if request.method=='POST':
+        try: 
+            aptdata = json.loads(request.body.decode("utf-8")) 
+            comment_id = int(aptdata['deletepeoplerating']['comment_id'])
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM     demosite_peoplerating \
+                            WHERE           comment_id = %s", [comment_id])
+            cursor.close()
+            return StreamingHttpResponse('deleted')
+        except:
+            print("delete fails")
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was GET request')
