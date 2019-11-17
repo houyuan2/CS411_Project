@@ -46,5 +46,5 @@ urlpatterns = [
     path('ratingtable_delete', views.ratingtable_delete),
     path('peoplerating_insert', views.peoplerating_insert),
     path('peoplerating_delete', views.peoplerating_delete),
-
+    path('AF1Distance', views.AF1Distance)
 ]

@@ -213,12 +213,14 @@ def frankie_get_addr(apart_key):
     entry = cursor.fetchall()
     print(entry)
     cursor.close()
+    return entry
 
-def frankie_get_distance(dest_addr):
+def frankie_get_distance(origin, dest_addr):
     cursor = connection.cursor()
     cursor.execute("SELECT      t.distance \
                     FROM        demosite_distancetable t \
-                    WHERE       t.dest_addr = %s", dest_addr)
+                    WHERE       t.dest_addr = %s AND t.apart_key_id = %s", [dest_addr, origin])
     entry = cursor.fetchall()
     print(entry)
     cursor.close()
+    return entry

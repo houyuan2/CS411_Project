@@ -305,3 +305,42 @@ def peoplerating_delete(request):
             print("delete fails")
             return StreamingHttpResponse('Error')
     return StreamingHttpResponse('it was GET request')
+    
+def AF1Distance(request):
+    if request.method=='POST':
+        try:
+            data = json.loads(request.body.decode("utf-8"));
+            apart_key = data['distance']['apart_key']
+            dest = data['distance']['dest']
+            cursor = connection.cursor()
+            cursor.execute("SELECT      f.apart_addr \
+                            FROM        demosite_apartmentfeature f \
+                            WHERE       f.apart_key = %s", apart_key)
+            entry = cursor.fetchall()
+            origin = entry[0][0]
+            cursor.close()
+            try:
+                cursor = connection.cursor()
+                cursor.execute("SELECT      t.distance \
+                                FROM        demosite_distancetable t \
+                                WHERE       t.dest_addr = %s", dest)
+                entry = cursor.fetchall()
+                distance = entry[0][0]
+                cursor.close()
+                return StreamingHttpResponse(distance)
+            except:
+                try:
+                    gmaps = googlemaps.Client(key='AIzaSyD8Fru1q7cYQvzjRWlE5m9T3tAPlWGBowE')
+                    matrix = gmaps.distance_matrix(origin, dest)
+                    distanceInMile = float(matrix['rows'][0]['elements'][0]['distance']['text'].split(' ')[0])/1.6
+                    cursor = connection.cursor()
+                    cursor.execute("INSERT INTO     demosite_distancetable(apart_key, dest_addr, distance) \
+                                    VALUES          (%s, %s, %s)", [apart_key, dest, distanceInMile])
+                    cursor.close()
+                    return StreamingHttpResponse('distanceInMile')
+                except:
+                    print('inaccurate address')
+                    return StreamingHttpResponse('inaccurate address')
+        except:
+            return StreamingHttpResponse('failed')
+    return StreamingHttpResponse('it was GET request')
