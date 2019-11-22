@@ -31,6 +31,7 @@ urlpatterns = [
     #url(r'^api/', include(keytable_resource.urls)),
     #path('', include('api.urls')),
     path('show',views.show),
+    path('oldfiltershow', views.oldfiltershow),
     path('keytable_insert', views.keytable_insert),
     path('keytable_delete', views.keytable_delete),
     path('keytable_update', views.keytable_update),

@@ -8,6 +8,8 @@ from django.core import serializers
 
 import json
 from django.http import StreamingHttpResponse
+import googlemaps
+from googleplaces import GooglePlaces, types, lang
 
 from demosite.models import KeyTable
 from rest_framework import generics
@@ -19,12 +21,61 @@ class KeyTableListCreate(generics.ListCreateAPIView):
     serializer_class = KeyTableSerializer
 
 def show(request):
-    if request.method == "GET": 
-        keytables = KeyTable.objects.all()
-        apartmentfeatures = ApartmentFeature.objects.all()
-        #data = serializers.serialize("json", keytables)
-        #data2 = serializers.serialize("json", apartmentfeatures)
-        return render(request, 'show.html', {'keytables':keytables, 'apartmentfeatures':apartmentfeatures})
+    if request.method=='GET':
+        try:
+            data = []
+            cursor = connection.cursor()
+            cursor.execute("SELECT A.apart_key, A.apart_addr, R.env_rating, R.ppl_rating FROM demosite_apartmentfeature A JOIN demosite_ratingtable R on A.apart_key = R.apart_key_id")
+            keytable_entry = cursor.fetchall()
+            cursor.close()
+            keytable_entry = tuple(keytable_entry)
+            for i in keytable_entry:
+                temp_dictionary =  {}
+                temp_dictionary['apart_key']  =i[0]
+                temp_dictionary['apart_addr'] = i[1]
+                temp_dictionary['overallrating'] = (float(i[2]) + float(i[3]))/2.0
+                data.append(temp_dictionary)
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was POST request')
+
+def oldfiltershow(request):
+    if request.method=='POST':
+        try:
+            filter = json.loads(request.body.decode("utf-8"))['Filter']
+            print(filter)
+            query = "SELECT DISTINCT apart_key, apart_addr, env_rating, ppl_rating FROM (SELECT * FROM (demosite_apartmentfeature A JOIN demosite_ratingtable R on A.apart_key = R.apart_key_id)) temp NATURAL JOIN demosite_keytable, demosite_roomfeature WHERE apart_key <> 'test'"
+            if(filter['parking'] > 0):
+                query += " AND parking = %d" % filter["parking"]
+            if(filter['lounge'] > 0):
+                query += " AND lounge = %d" % filter["lounge"]
+            if(filter['study_room'] > 0):
+                query += " AND study_room = %d" % filter["study_room"]
+            if(filter['front_desk'] > 0):
+                query += " AND front_desk = %d" % filter["front_desk"]
+            print(query)
+            data = []
+            cursor = connection.cursor()
+            cursor.execute(query)
+            keytable_entry = cursor.fetchall()
+            print(keytable_entry)
+            cursor.close()
+            keytable_entry = tuple(keytable_entry)
+            for i in keytable_entry:
+                temp_dictionary =  {}
+                temp_dictionary['apart_key']  =i[0]
+                temp_dictionary['apart_addr'] = i[1]
+                temp_dictionary['overallrating'] = (float(i[2]) + float(i[3]))/2.0
+                data.append(temp_dictionary)
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was GET request')
 
 def keytable_insert(request):
     if request.method=='POST': #and request.value == "insert":
@@ -37,7 +88,7 @@ def keytable_insert(request):
                 apart_addr = aptdata['newapartment']['aptadd']
                 apart_key = apart_name.upper()
                 cursor = connection.cursor()
-                cursor.execute("INSERT INTO     demosite_keytable(apart_name, apart_addr, apart_key) \
+                cursor.execute("INSERT INTO     demosite_keytable(apart_name, apart_addr, apart_key_id) \
                             VALUES          (%s, %s, %s)", [apart_name, apart_addr, apart_key])
                 return StreamingHttpResponse('received')
  #           else:
@@ -69,7 +120,7 @@ def keytable_update(request):
             room_key = updatedata['changeapartment']['roomkey']
             cursor = connection.cursor()
             cursor.execute("UPDATE     demosite_keytable \
-                            SET        apart_name = %s, apart_addr = %s, apart_key = %s \
+                            SET        apart_name = %s, apart_addr = %s, apart_key_id = %s \
                             WHERE      room_key = %s", [apart_name, apart_addr, apart_key, room_key])
             cursor.close()
             return StreamingHttpResponse('updated')
@@ -82,14 +133,15 @@ def apartfeature_insert(request):
         study_room = aptdata['newapartmentfeature']['study_room']
         lounge = aptdata['newapartmentfeature']['lounge']
         front_desk = aptdata['newapartmentfeature']['front_desk']
+        apart_addr = aptdata['newapartmentfeature']['apart_addr']
         apart_key = apart_name.upper()
         parking = int(parking)
         study_room = int(study_room)
         lounge = int(lounge)
         front_desk = int(front_desk)
         cursor = connection.cursor()
-        cursor.execute("INSERT INTO     demosite_apartmentfeature(apart_key, parking, study_room, lounge, front_desk) \
-                        VALUES          (%s, %s, %s, %s, %s)", [apart_key, parking, study_room, lounge, front_desk])
+        cursor.execute("INSERT INTO     demosite_apartmentfeature(apart_key, parking, study_room, lounge, front_desk, apart_addr) \
+                        VALUES          (%s, %s, %s, %s, %s, %s)", [apart_key, parking, study_room, lounge, front_desk, apart_addr])
         cursor.close()
         return StreamingHttpResponse('received')
     return StreamingHttpResponse('it was GET request') 
@@ -136,7 +188,7 @@ def get_apart_with_parking_and_study_room(request):
             cursor.execute("SELECT DISTINCT a.apart_name FROM \
                             (SELECT            apart_name \
                             FROM              demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
-                            GROUP BY          apart_key, apart_name, parking\
+                            GROUP BY          apart_key_id, apart_name, parking\
                             HAVING            parking = 1) a \
                             INNER JOIN \
                             (SELECT            apart_name \
@@ -205,12 +257,14 @@ def distancetable_insert(request):
     if request.method=='POST':
         try:
             aptdata = json.loads(request.body.decode("utf-8"))
+            search_id = aptdata['newdistancetable']['search_id']
             apart_key = aptdata['newdistancetable']['apart_key'].upper()
             dest_addr = aptdata['newdistancetable']['dest_addr']
             distance = float(aptdata['newdistancetable']['distance'])
+            print(aptdata['newdistancetable'])
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO     demosite_distancetable(apart_key, dest_addr, distance) \
-                            VALUES          (%s, %s, %s)", [apart_key, dest_addr, distance])
+            cursor.execute("INSERT INTO     demosite_distancetable(search_id, apart_key_id, dest_addr, distance) \
+                            VALUES          (%s, %s, %s, %s)", [search_id, apart_key, dest_addr, distance])
             cursor.close()
             return StreamingHttpResponse('received')
         except:
@@ -249,7 +303,7 @@ def ratingtable_insert(request):
             column_list = [apart_key, env_rating, ppl_rating, rest_05_count, rest_1_count, rest_2_count,
                         shop_05_count, shop_1_count, shop_2_count]
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO     demosite_ratingtable(apart_key, env_rating, ppl_rating, rest_05_count, rest_1_count, \
+            cursor.execute("INSERT INTO     demosite_ratingtable(apart_key_id, env_rating, ppl_rating, rest_05_count, rest_1_count, \
                     rest_2_count, shop_05_count, shop_1_count, shop_2_count) \
                             VALUES          (%s, %s, %s, %s, %s, %s, %s, %s, %s)", column_list)
             return StreamingHttpResponse('received')
@@ -265,7 +319,7 @@ def ratingtable_delete(request):
             apart_key = aptdata['deleteratingtable']['apart_key'].upper()
             cursor = connection.cursor()
             cursor.execute("DELETE FROM     demosite_ratingtable \
-                            WHERE           apart_key = %s", [apart_key])
+                            WHERE           apart_key_id = %s", [apart_key])
             cursor.close()
             return StreamingHttpResponse('deleted')
         except:
@@ -282,7 +336,8 @@ def peoplerating_insert(request):
             comment = aptdata['newpeoplerating']['comment']
             nick_name = aptdata['newpeoplerating']['nick_name']
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO     demosite_peoplerating(apart_key, rating, comment, nick_name) \
+            print(aptdata['newpeoplerating'])
+            cursor.execute("INSERT INTO     demosite_peoplerating(apart_key_id, rating, comment, nick_name) \
                             VALUES          (%s, %s, %s, %s)", [apart_key, rating, comment, nick_name])
             cursor.close()
             return StreamingHttpResponse('received')
@@ -309,7 +364,7 @@ def peoplerating_delete(request):
 def AF1Distance(request):
     if request.method=='POST':
         try:
-            data = json.loads(request.body.decode("utf-8"));
+            data = json.loads(request.body.decode("utf-8"))
             apart_key = data['distance']['apart_key']
             dest = data['distance']['dest']
             cursor = connection.cursor()
@@ -325,7 +380,7 @@ def AF1Distance(request):
                                 FROM        demosite_distancetable t \
                                 WHERE       t.dest_addr = %s", dest)
                 entry = cursor.fetchall()
-                distance = entry[0][0]
+                distance = entry[0]
                 cursor.close()
                 return StreamingHttpResponse(distance)
             except:
@@ -334,13 +389,47 @@ def AF1Distance(request):
                     matrix = gmaps.distance_matrix(origin, dest)
                     distanceInMile = float(matrix['rows'][0]['elements'][0]['distance']['text'].split(' ')[0])/1.6
                     cursor = connection.cursor()
-                    cursor.execute("INSERT INTO     demosite_distancetable(apart_key, dest_addr, distance) \
+                    cursor.execute("INSERT INTO     demosite_distancetable(apart_key_id, dest_addr, distance) \
                                     VALUES          (%s, %s, %s)", [apart_key, dest, distanceInMile])
                     cursor.close()
-                    return StreamingHttpResponse('distanceInMile')
-                except:
-                    print('inaccurate address')
+                    return StreamingHttpResponse(distanceInMile)
+                except Exception as e:
+                    print(e)
                     return StreamingHttpResponse('inaccurate address')
         except:
             return StreamingHttpResponse('failed')
     return StreamingHttpResponse('it was GET request')
+
+def add_trigger():
+    trigger = "CREATE TRIGGER auto_ratings_update \
+                AFTER INSERT ON demosite_peoplerating \
+                FOR EACH ROW \
+	            BEGIN \
+	            CALL update_ppl_rating(NEW.apart_key_id); \
+	            END"
+    cursor = connection.cursor()
+    cursor.execute(trigger)
+    cursor.close()
+
+def add_stored_procedure():
+    procedure = "CREATE PROCEDURE update_ppl_rating(IN update_key varchar(128)) \
+                BEGIN \
+                DECLARE total INT DEFAULT 0; \
+                DECLARE sum_rating INT DEFAULT 0; \
+                DECLARE avg_rating DOUBLE DEFAULT 0; \
+                SELECT COUNT(*) INTO total \
+                FROM demosite_peoplerating \
+                GROUP BY apart_key_id \
+                HAVING apart_key_id = update_key; \
+                SELECT SUM(rating) INTO sum_rating \
+                FROM demosite_peoplerating \
+                GROUP BY apart_key_id \
+                HAVING apart_key_id = update_key; \
+                SET avg_rating = sum_rating / total; \
+                UPDATE demosite_ratingtable \
+                SET ppl_rating = avg_rating \
+                WHERE apart_key_id = update_key; \
+                END"
+    cursor = connection.cursor()
+    cursor.execute(procedure)
+    cursor.close()

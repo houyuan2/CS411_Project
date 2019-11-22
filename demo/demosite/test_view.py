@@ -224,3 +224,37 @@ def frankie_get_distance(origin, dest_addr):
     print(entry)
     cursor.close()
     return entry
+
+def add_trigger():
+    trigger = "CREATE TRIGGER auto_ratings_update \
+                AFTER INSERT ON demosite_peoplerating \
+                FOR EACH ROW \
+	            BEGIN \
+	            CALL update_ppl_rating(NEW.apart_key_id); \
+	            END"
+    cursor = connection.cursor()
+    cursor.execute(trigger)
+    cursor.close()
+
+def add_stored_procedure():
+    procedure = "CREATE PROCEDURE update_ppl_rating(IN update_key varchar(128)) \
+                BEGIN \
+                DECLARE total INT DEFAULT 0; \
+                DECLARE sum_rating INT DEFAULT 0; \
+                DECLARE avg_rating DOUBLE DEFAULT 0; \
+                SELECT COUNT(*) INTO total \
+                FROM demosite_peoplerating \
+                GROUP BY apart_key_id \
+                HAVING apart_key_id = update_key; \
+                SELECT SUM(rating) INTO sum_rating \
+                FROM demosite_peoplerating \
+                GROUP BY apart_key_id \
+                HAVING apart_key_id = update_key; \
+                SET avg_rating = sum_rating / total; \
+                UPDATE demosite_ratingtable \
+                SET ppl_rating = avg_rating \
+                WHERE apart_key_id = update_key; \
+                END"
+    cursor = connection.cursor()
+    cursor.execute(procedure)
+    cursor.close()
