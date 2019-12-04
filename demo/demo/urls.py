@@ -31,6 +31,7 @@ urlpatterns = [
     #url(r'^api/', include(keytable_resource.urls)),
     #path('', include('api.urls')),
     path('show',views.show),
+    path('search', views.search),
     path('oldfiltershow', views.oldfiltershow),
     path('keytable_insert', views.keytable_insert),
     path('keytable_delete', views.keytable_delete),
@@ -47,5 +48,11 @@ urlpatterns = [
     path('ratingtable_delete', views.ratingtable_delete),
     path('peoplerating_insert', views.peoplerating_insert),
     path('peoplerating_delete', views.peoplerating_delete),
-    path('AF1Distance', views.AF1Distance)
+    path('AF1Distance', views.AF1Distance),
+    path('update_nearby', views.update_nearby),
+    path('new_show', views.new_show),
+    path('test', views.test),
+    path('selectforyou', views.selectforyou),
+    path('advance_filter', views.advance_filter),
+    path('similar_apart', views.similar_apart)
 ]

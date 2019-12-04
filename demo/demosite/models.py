@@ -33,6 +33,7 @@ class RoomFeature(models.Model):
     cover_water_fee = models.IntegerField()
     has_tv = models.IntegerField()
     size = models.IntegerField()
+    url = models.CharField(max_length=500)
 
 class DistanceTable(models.Model):
     search_id = models.AutoField(primary_key=True)

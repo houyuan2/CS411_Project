@@ -5,7 +5,9 @@ from demosite.models import ApartmentFeature
 from json import dump
 from django.db import connection
 from django.core import serializers
+from neo4j import GraphDatabase
 
+import math
 import json
 from django.http import StreamingHttpResponse
 import googlemaps
@@ -14,11 +16,66 @@ from googleplaces import GooglePlaces, types, lang
 from demosite.models import KeyTable
 from rest_framework import generics
 
+import requests
+
 from .serializers import KeyTableSerializer#, ApartmentFeatureSerializer
 
 class KeyTableListCreate(generics.ListCreateAPIView):
     queryset = KeyTable.objects.all()
     serializer_class = KeyTableSerializer
+
+
+class FindExample(object):
+
+    def __init__(self, uri, user, password):
+        self._driver = GraphDatabase.driver(uri, auth=(user, password))
+
+    def close(self):
+        self._driver.close()
+
+    def apply_filter(self, message):
+        message  = self.parse_filter(message)
+        with self._driver.session() as session:
+            filter_result = session.write_transaction(self._filter_result, message)
+            output = []
+            for room in filter_result:
+                output.append(room[0])
+            return output
+    def parse_filter(self, message):
+        if not message:
+            return ["(r:Room)"]
+        output = []
+        example = "(f2:Feature12)<-[f10:f]-(r:Room)"
+        for index, condition in enumerate(message):
+            c = "(feature" + str(index) + ":Feature" + str(condition) + ")<-[f" + str(index) + ":f]-(r:Room)"
+            output.append(c)
+        return output
+
+    def apply_recon(self, message):
+        with self._driver.session() as session:
+            recon = session.write_transaction(self._recon_result, str(message))
+            output = {}
+            for g in recon:
+                print(g[0])
+                output[g[0]] = g[2]
+            return output
+    @staticmethod
+    def _filter_result(tx, message):
+
+        condition = ""
+        for i in range(len(message) - 1):
+            condition += message[i] + ","
+        condition += message[len(message) - 1]
+        # print(condition)
+        command = "MATCH " + condition + " \nRETURN DISTINCT r.apart_key, r.type"
+        result = tx.run(command)
+        return result
+
+    @staticmethod
+    def _recon_result(tx, message):
+        command = "MATCH (n:Room)-[f]->()-[r]->(n2:Room)\n WHERE n.room_key = " + message + " AND n2.apart_key <> n.apart_key \nRETURN n2.apart_key, n2.room_key, count(n2.room_key)/13.0*0.8+((n2.size-n.size)*0.2/n.size) %0.2 as Freq\n ORDER BY Freq DESC\n LIMIT 3"
+        result = tx.run(command)
+        return result
 
 def show(request):
     if request.method=='GET':
@@ -28,6 +85,31 @@ def show(request):
             cursor.execute("SELECT A.apart_key, A.apart_addr, R.env_rating, R.ppl_rating FROM demosite_apartmentfeature A JOIN demosite_ratingtable R on A.apart_key = R.apart_key_id")
             keytable_entry = cursor.fetchall()
             cursor.close()
+            keytable_entry = tuple(keytable_entry)
+            for i in keytable_entry:
+                temp_dictionary =  {}
+                temp_dictionary['apart_key']  =i[0]
+                temp_dictionary['apart_addr'] = i[1]
+                temp_dictionary['overallrating'] = (float(i[2]) + float(i[3]))/2.0
+                data.append(temp_dictionary)
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was POST request')
+
+def search(request):
+    if request.method=='POST':
+        try:
+            search = json.loads(request.body.decode("utf-8"))['search']['apart_key']
+            cursor = connection.cursor()
+            query = "SELECT A.apart_key, A.apart_addr, R.env_rating, R.ppl_rating FROM demosite_apartmentfeature A JOIN demosite_ratingtable R on A.apart_key = R.apart_key_id "
+            query += "WHERE A.apart_addr LIKE '%" + str(search) + "%' OR A.apart_key LIKE '%" + str(search) + "%'"
+            cursor.execute(query)
+            keytable_entry = cursor.fetchall()
+            cursor.close()
+            data=[]
             keytable_entry = tuple(keytable_entry)
             for i in keytable_entry:
                 temp_dictionary =  {}
@@ -378,16 +460,19 @@ def AF1Distance(request):
                 cursor = connection.cursor()
                 cursor.execute("SELECT      t.distance \
                                 FROM        demosite_distancetable t \
-                                WHERE       t.dest_addr = %s", dest)
+                                WHERE       t.dest_addr = %s AND t.apart_key_id = %s", [dest, apart_key])
                 entry = cursor.fetchall()
                 distance = entry[0]
                 cursor.close()
                 return StreamingHttpResponse(distance)
-            except:
+            except Exception as e:
+                #print(e)
                 try:
                     gmaps = googlemaps.Client(key='AIzaSyD8Fru1q7cYQvzjRWlE5m9T3tAPlWGBowE')
                     matrix = gmaps.distance_matrix(origin, dest)
+                    #print(matrix)
                     distanceInMile = float(matrix['rows'][0]['elements'][0]['distance']['text'].split(' ')[0])/1.6
+                    #print(distanceInMile)
                     cursor = connection.cursor()
                     cursor.execute("INSERT INTO     demosite_distancetable(apart_key_id, dest_addr, distance) \
                                     VALUES          (%s, %s, %s)", [apart_key, dest, distanceInMile])
@@ -395,12 +480,55 @@ def AF1Distance(request):
                     return StreamingHttpResponse(distanceInMile)
                 except Exception as e:
                     print(e)
-                    return StreamingHttpResponse('inaccurate address')
+                    return StreamingHttpResponse('1.00')
         except:
-            return StreamingHttpResponse('failed')
+            return StreamingHttpResponse('1.00')
     return StreamingHttpResponse('it was GET request')
 
-def add_trigger():
+def update_nearby(request):
+    if request.method=='GET':
+        try: 
+            cursor = connection.cursor()
+            cursor.execute("SELECT apart_key_id FROM demosite_ratingtable")
+            cursor.close()
+            entry = cursor.fetchall()
+            for apart in entry:
+                id = apart[0]
+                cursor = connection.cursor()
+                cursor.execute("SELECT apart_addr FROM demosite_apartmentfeature WHERE apart_key=%s", id)
+                cursor.close()
+                addr = cursor.fetchall()[0][0]
+                print(addr)
+                gmaps = googlemaps.Client(key = 'AIzaSyD8Fru1q7cYQvzjRWlE5m9T3tAPlWGBowE')
+                location = '309 E Green St Champaign IL'
+                geocode_result = gmaps.geocode(addr)
+                lat = geocode_result[0]['geometry']['location']['lat']
+                lng = geocode_result[0]['geometry']['location']['lng']
+                #05
+                r05 = len(gmaps.places_nearby(location=(lat, lng), radius = 200, keyword = 'resturants')['results'])
+                s05 = len(gmaps.places_nearby(location=(lat, lng), radius = 200, keyword = 'supermarket')['results'])
+                #1
+                r1 = len(gmaps.places_nearby(location=(lat, lng), radius = 500, keyword = 'resturants')['results'])
+                s1 = len(gmaps.places_nearby(location=(lat, lng), radius = 500, keyword = 'supermarket')['results'])
+                #2
+                r2 = len(gmaps.places_nearby(location=(lat, lng), radius = 800, keyword = 'resturants')['results'])
+                s2 = len(gmaps.places_nearby(location=(lat, lng), radius = 800, keyword = 'supermarket')['results'])
+                print(r05, r1, r2, s05, s1, s2)
+                envrating = max(5, (r05+r1+r2+s05+s1+s2)/100)
+                cursor = connection.cursor()
+                cursor.execute("UPDATE     demosite_ratingtable \
+                                SET        env_rating = %s, rest_05_count = %s, rest_1_count = %s, rest_2_count = %s, \
+                                           shop_05_count = %s, shop_1_count = %s, shop_2_count = %s \
+                                WHERE      apart_key_id = %s", [envrating, r05, r1, r2, s05, s1, s2, apart])
+                cursor.close()
+                print('updated')
+            return StreamingHttpResponse('success')
+        except Exception as e:
+            print(e)
+            return StreamingHttpResponse('Error')
+    return StreamingHttpResponse('it was POST request')
+
+def AF1_comment_add_trigger():
     trigger = "CREATE TRIGGER auto_ratings_update \
                 AFTER INSERT ON demosite_peoplerating \
                 FOR EACH ROW \
@@ -411,7 +539,7 @@ def add_trigger():
     cursor.execute(trigger)
     cursor.close()
 
-def add_stored_procedure():
+def AF1_comment_add_stored_procedure():
     procedure = "CREATE PROCEDURE update_ppl_rating(IN update_key varchar(128)) \
                 BEGIN \
                 DECLARE total INT DEFAULT 0; \
@@ -433,3 +561,322 @@ def add_stored_procedure():
     cursor = connection.cursor()
     cursor.execute(procedure)
     cursor.close()
+
+def test(request):
+    key = '309'
+    cursor = connection.cursor()
+    cursor.execute("SELECT DISTINCT     r.cover_internet_fee, r.cover_electricity_fee, r.private_washing_machine, r.number_of_bedroom, \
+                                        r.number_of_bathroom, r.has_kitchen, r.has_refigerator, r.cover_water_fee, r.has_tv, r.size, r.room_key_id, k.apart_key_id \
+                    FROM        (SELECT * FROM demosite_keytable WHERE apart_key_id = %s) k JOIN demosite_roomfeature r ON k.room_key = r.room_key_id", key)
+    entry = cursor.fetchall()
+    print(entry)
+    cursor.close()
+    return StreamingHttpResponse("done") 
+
+
+def new_show(request):
+    if request.method=='POST':
+        try:
+            key = json.loads(request.body.decode("utf-8"))['showinfo']['apart_key']
+            data = []
+            cursor = connection.cursor()
+            cursor.execute("SELECT * FROM demosite_ratingtable WHERE apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            temparray = []
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['rest05']  =i[3]
+                temp_dictionary['rest1'] = i[4]
+                temp_dictionary['rest2'] = i[5]
+                temp_dictionary['shop05'] = i[6]
+                temp_dictionary['shop1'] = i[7]
+                temp_dictionary['shop2'] = i[8]
+                temparray.append(temp_dictionary)
+            data.append(temparray)
+            cursor = connection.cursor()
+            cursor.execute("SELECT DISTINCT     r.cover_internet_fee, r.cover_electricity_fee, r.private_washing_machine, r.number_of_bedroom, \
+                                                r.number_of_bathroom, r.has_kitchen, r.has_refigerator, r.cover_water_fee, r.has_tv, r.size, r.room_key_id, k.apart_key_id, r.url \
+                            FROM        (SELECT * FROM demosite_keytable WHERE apart_key_id = %s) k JOIN demosite_roomfeature r ON k.room_key = r.room_key_id", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            temparray = []
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['cover_internet_fee']  =i[0]
+                temp_dictionary['cover_electricity_fee'] = i[1]
+                temp_dictionary['private_washing_machine'] = i[2]
+                temp_dictionary['number_of_bedroom'] = i[3]
+                temp_dictionary['number_of_bathroom'] = i[4]
+                temp_dictionary['has_kitchen'] = i[5]
+                temp_dictionary['has_refigerator'] = i[6]
+                temp_dictionary['cover_water_fee'] = i[7]
+                temp_dictionary['has_tv'] = i[8]
+                temp_dictionary['size'] = i[9]
+                temp_dictionary['roomkey'] = i[10]
+                temp_dictionary['url'] = i[12]
+                temparray.append(temp_dictionary)
+            data.append(temparray)
+            cursor = connection.cursor()
+            cursor.execute("SELECT      apart_addr, parking, study_room, lounge, front_desk, apart_key \
+                            FROM        demosite_apartmentfeature \
+                            WHERE       apart_key = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            temparray = []
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['apart_addr']  =i[0]
+                temp_dictionary['parking'] = i[1]
+                temp_dictionary['study_room'] = i[2]
+                temp_dictionary['lounge'] = i[3]
+                temp_dictionary['front_desk'] = i[4]
+                temparray.append(temp_dictionary)
+            data.append(temparray)
+            cursor = connection.cursor()
+            cursor.execute("SELECT      env_rating, ppl_rating, apart_key_id \
+                            FROM        demosite_ratingtable \
+                            WHERE       apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            temparray = []
+            temparray = []
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['env_rating']  =i[0]
+                temp_dictionary['ppl_rating'] = i[1]
+                temparray.append(temp_dictionary)
+            data.append(temparray)
+            cursor = connection.cursor()
+            cursor.execute("SELECT      rating, comment, nick_name, apart_key_id \
+                            FROM        demosite_peoplerating \
+                            WHERE       apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            temparray = []
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['rating']  =i[0]
+                temp_dictionary['comment'] = i[1]
+                temp_dictionary['nick_name'] = i[2]
+                temparray.append(temp_dictionary)
+            data.append(temparray)
+            print(data)
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was GET request')
+
+def selectforyou(request):
+    if request.method=='POST' or request.method=='GET':
+        input = json.loads(request.body.decode("utf-8"))['Questions']
+        #input = {'weights': {'washing': 1, 'nosharebath': 0, 'kitchen': 0, 'tv': 1, 'car': 0, 'study': 0, 'lounge': 0, 'shopping': 0}, 'dest1': '309 E Green St, Champaign IL 61820', 'dest2': '201 N Goodwin Ave, Urbana, IL 61801', 'dest3': '1401 W Green St, Urbana, IL 61801'}
+        #print(input)
+        weights = input['weights']
+        total = 0
+        for i in weights:
+            weights[i] += 0.3
+            total += weights[i]
+        for i in weights:
+            weights[i] /= total
+            weights[i] *= 5
+        #print(weights)
+        #env_rating
+        cursor = connection.cursor()
+        cursor.execute("SELECT apart_key_id, room_key, private_washing_machine, number_of_bathroom, number_of_bedroom, has_kitchen, has_tv FROM demosite_keytable K JOIN demosite_roomfeature R on K.room_key = R.room_key_id")
+        features = cursor.fetchall()
+        env_rating = {}
+        for i in features:
+            name = i[0]
+            washing = i[2]
+            if(i[3] == i[4]):
+                nosharebath = 1
+            else:
+                nosharebath = 0
+            kitchen = i[5]
+            tv = i[6]
+            tempenvrating = washing * weights['washing'] + nosharebath * weights['nosharebath'] + kitchen * weights['kitchen'] + tv * weights['tv']
+            if name not in env_rating:
+                env_rating[name] = tempenvrating
+            else:
+                env_rating[name] = (env_rating[name] + tempenvrating) / 2
+        cursor = connection.cursor()
+        cursor.execute("SELECT apart_key, parking, study_room, lounge, front_desk FROM demosite_apartmentfeature")
+        features = cursor.fetchall()
+        for i in features:
+            name = i[0]
+            temppr = weights['car'] * i[1] + weights['study'] * i[2] + weights['lounge'] * i[3] + weights['shopping'] * i[4]
+            env_rating[name] += temppr
+        print(env_rating)
+        cursor.close()
+        #keytable_entry = tuple(keytable_entry)
+
+        #pplrating
+        cursor = connection.cursor()
+        cursor.execute("SELECT apart_key_id, ppl_rating FROM demosite_ratingtable")
+        pplrating = cursor.fetchall()
+        ppl_rating = {}
+        for i in pplrating:
+            ppl_rating[i[0]] = i[1]
+        print(ppl_rating)
+
+        #locationrating
+        l1 = input['dest1']
+        l2 = input['dest2']
+        l3 = input['dest3']
+        locationrating = {}
+        temploc = {}
+        mindis = 50
+        for i in env_rating:
+            totaldis = 0.0
+            d = {'distance':{'apart_key': i, 'dest': l1}}
+            url = "http://18.217.253.58:8000/AF1Distance"
+            r = requests.post(url, data=json.dumps(d))
+            totaldis += float(r.text)
+            d = {'distance':{'apart_key': i, 'dest': l2}}
+            url = "http://18.217.253.58:8000/AF1Distance"
+            r = requests.post(url, data=json.dumps(d))
+            totaldis += float(r.text)
+            d = {'distance':{'apart_key': i, 'dest': l3}}
+            url = "http://18.217.253.58:8000/AF1Distance"
+            r = requests.post(url, data=json.dumps(d))
+            totaldis += float(r.text)
+            print(i, totaldis)
+            if mindis > totaldis:
+                mindis = totaldis
+            temploc[i] = totaldis
+        print(temploc)
+        print(mindis)
+        for i in temploc:
+            dis = temploc[i]
+            rate = math.log(dis/mindis)
+            locationrating[i] = 5 - rate * 3
+        print(locationrating)
+        data = []
+        #print(env_rating)
+        #print(ppl_rating)
+        #print(locationrating)
+        tempdict = {}
+        for i in locationrating:
+            smart = (env_rating[i] + ppl_rating[i] + locationrating[i])/3
+            tempdict[i] = smart
+        sorting = sorted(tempdict.keys())[::-1]
+        print(sorting)
+        for i in sorting:
+            smart = (env_rating[i] + ppl_rating[i] + max(1,locationrating[i]))/3
+            finaldict = {'apart': i, 'env': env_rating[i], 'ppl': ppl_rating[i], 'loc': min(max(1,locationrating[i]),5), 'smart': min(max(1,smart),5)}
+            data.append(finaldict)
+        print(data)
+        return StreamingHttpResponse(json.dumps([data]))
+    return StreamingHttpResponse('it was GET request')
+def parse_json_filter(raw_input):
+    output = []
+    if raw_input['parking']:
+        output.append(1)
+    print("reach here1")
+    if raw_input['study_room']:
+        output.append(2)
+    print("reach here2")
+    if raw_input['lounge']:
+        output.append(3)
+    print("reach here3")
+    if raw_input['front_desk']:
+        output.append(4)
+    print("reach here4")
+    if raw_input['cover_internet_fee']:
+        output.append(5)
+    print("reach here5")
+    if raw_input['cover_electricity_fee']:
+        output.append(6)
+    print("reach here6")
+    if raw_input['private_washing_machine']:
+        output.append(7)
+    print("reach here7")
+    if raw_input['has_kitchen']:
+        output.append(8)
+    print("reach here8")
+    if raw_input['has_refrigerator']:
+        output.append(9)
+    print("reach here9")
+    if raw_input['cover_water_fee']:
+        output.append(10)
+    print("reach here10")
+    if raw_input['has_tv']:
+        output.append(11)
+    if raw_input['bedrooms'] != 0:
+        output.append(str(raw_input['bedrooms']*10)+'bed')
+    if raw_input['restrooms'] != 0:
+        output.append(str(raw_input['restrooms']*10)+'bath')
+        
+    print("this is the: ", output)
+    return output
+
+def advance_filter(request):
+    if request.method=='POST':
+        try:
+            Graph = FindExample("bolt://localhost", "matcha_squad", "matcha") #need to use a config file
+            filter = json.loads(request.body.decode("utf-8"))['Filter']
+            print("do we have filter?", filter)
+            filter = parse_json_filter(filter)
+            print(filter)
+            result = Graph.apply_filter(filter)
+            Graph.close()
+            cursor = connection.cursor()
+            query = "SELECT A.apart_key, A.apart_addr, R.env_rating, R.ppl_rating FROM demosite_apartmentfeature A JOIN demosite_ratingtable R on A.apart_key = R.apart_key_id "
+            cursor.execute(query)
+            keytable_entry = cursor.fetchall()
+            cursor.close()
+            data=[]
+            keytable_entry = tuple(keytable_entry)
+            for i in keytable_entry:
+                if i[0] not in result:
+                    continue
+                temp_dictionary =  {}
+                temp_dictionary['apart_key']  =i[0]
+                temp_dictionary['apart_addr'] = i[1]
+                temp_dictionary['overallrating'] = (float(i[2]) + float(i[3]))/2.0
+                data.append(temp_dictionary)
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was POST request')
+
+def similar_apart(request):
+    if request.method=='POST':
+        try:
+            Graph = FindExample("bolt://localhost", "matcha_squad", "matcha") #need to use a config file
+            filter = json.loads(request.body.decode("utf-8"))['similar_room']['room_key']
+            print("the given: ", filter)
+            result = Graph.apply_recon(filter)
+            Graph.close()
+            cursor = connection.cursor()
+            query = "SELECT A.apart_key, A.apart_addr, R.env_rating, R.ppl_rating FROM demosite_apartmentfeature A JOIN demosite_ratingtable R on A.apart_key = R.apart_key_id "
+            cursor.execute(query)
+            keytable_entry = cursor.fetchall()
+            cursor.close()
+            data=[]
+            keytable_entry = tuple(keytable_entry)
+            for i in keytable_entry:
+                if i[0] not in result:
+                    continue
+                temp_dictionary =  {}
+                temp_dictionary['apart_key']  =i[0]
+                temp_dictionary['apart_addr'] = i[1]
+                temp_dictionary['overallrating'] = (float(i[2]) + float(i[3]))/2.0
+                temp_dictionary['similarity'] = round(result[i[0]], 2)
+                data.append(temp_dictionary)
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was POST request')

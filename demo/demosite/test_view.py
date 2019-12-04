@@ -258,3 +258,91 @@ def add_stored_procedure():
     cursor = connection.cursor()
     cursor.execute(procedure)
     cursor.close()
+
+def new_show(request):
+    if request.method=='POST':
+        try:
+            key = json.loads(request.body.decode("utf-8"))['apart_key']
+            data = []
+
+            cursor = connection.cursor()
+            cursor.execute("SELECT      r.cover_internet_fee, r.cover_electricity_fee, r.private_washing_machine, r.number_of_bedroom, \
+                                        r.number_of_bathroom, r.has_kitchen, r.has_refigerator, r.cover_water_fee, r.has_tv, r.size, r.room_key_id \
+                            FROM        demosite_keytable k NATURAL JOIN demosite_roomfeature r \
+                            WHERE       k.apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['cover_internet_fee']  =i[0]
+                temp_dictionary['cover_electricity_fee'] = i[1]
+                temp_dictionary['private_washing_machine'] = i[2]
+                temp_dictionary['number_of_bedroom'] = i[3]
+                temp_dictionary['number_of_bathroom'] = i[4]
+                temp_dictionary['has_kitchen'] = i[5]
+                temp_dictionary['has_refigerator'] = i[6]
+                temp_dictionary['cover_water_fee'] = i[7]
+                temp_dictionary['has_tv'] = i[8]
+                temp_dictionary['size'] = i[9]
+                data.append(temp_dictionary)
+            
+            cursor = connection.cursor()
+            cursor.execute("SELECT      apart_addr, parking, study_room, lounge, front_desk, apart_key_id \
+                            FROM        demosite_apartmentfeature \
+                            WHERE       apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['apart_addr']  =i[0]
+                temp_dictionary['parking'] = i[1]
+                temp_dictionary['study_room'] = i[2]
+                temp_dictionary['lounge'] = i[3]
+                temp_dictionary['front_desk'] = i[4]
+                data.append(temp_dictionary)
+            
+            cursor = connection.cursor()
+            cursor.execute("SELECT      env_rating, ppl_rating, apart_key_id \
+                            FROM        demosite_ratingtable \
+                            WHERE       apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['env_rating']  =i[0]
+                temp_dictionary['ppl_rating'] = i[1]
+                data.append(temp_dictionary)
+
+            cursor = connection.cursor()
+            cursor.execute("SELECT      rating, comment, nick_name, apart_key_id \
+                            FROM        demosite_peoplerating \
+                            WHERE       apart_key_id = %s", key)
+            entry = cursor.fetchall()
+            cursor.close()
+            entry = tuple(entry)
+            for i in entry:
+                temp_dictionary =  {}
+                temp_dictionary['rating']  =i[0]
+                temp_dictionary['comment'] = i[1]
+                temp_dictionary['nick_name'] = i[2]
+                data.append(temp_dictionary)
+
+            return StreamingHttpResponse(json.dumps(data))
+        except Exception as e:
+            print(e)
+            print("error")
+            return StreamingHttpResponse("Error") 
+    return StreamingHttpResponse('it was GET request')
+
+def test_join():
+    key = '309'
+    cursor = connection.cursor()
+    cursor.execute("SELECT DISTINCT     r.cover_internet_fee, r.cover_electricity_fee, r.private_washing_machine, r.number_of_bedroom, \
+                                        r.number_of_bathroom, r.has_kitchen, r.has_refigerator, r.cover_water_fee, r.has_tv, r.size, r.room_key_id, k.apart_key_id \
+                    FROM        demosite_keytable k JOIN demosite_roomfeature r ON k.room_key = r.room_key_id \
+                    WHERE       k.apart_key_id = 309")
+    entry = cursor.fetchall()
+    print(entry)
