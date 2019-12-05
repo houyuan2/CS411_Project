@@ -1,0 +1,23 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@zeit/next-css": "^1.0.1",
+    "axios": "^0.19.0",
+    "bootstrap": "^4.3.1",
+    "jquery": "^1.9.1",
+    "next": "9.1.1",
+    "next-images": "^1.2.0",
+    "react": "16.11.0",
+    "react-bootstrap": "^1.0.0-beta.14",
+    "react-dom": "16.11.0",
+    "react-star-ratings": "^2.3.0",
+    "vue-star-rating": "^1.6.1"
+  }
+}
