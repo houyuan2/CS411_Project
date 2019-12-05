@@ -167,11 +167,11 @@ def keytable_insert(request):
 #            if form.is_valid():
                 aptdata = json.loads(request.body.decode("utf-8")) 
                 apart_name = aptdata['newapartment']['aptname']
-                apart_addr = aptdata['newapartment']['aptadd']
+                # apart_addr = aptdata['newapartment']['aptadd']
                 apart_key = apart_name.upper()
                 cursor = connection.cursor()
-                cursor.execute("INSERT INTO     demosite_keytable(apart_name, apart_addr, apart_key_id) \
-                            VALUES          (%s, %s, %s)", [apart_name, apart_addr, apart_key])
+                cursor.execute("INSERT INTO     demosite_keytable(apart_name, apart_key_id) \
+                            VALUES          (%s, %s)", [apart_name, apart_key])
                 return StreamingHttpResponse('received')
  #           else:
  #               form = NameForm()
@@ -197,13 +197,12 @@ def keytable_update(request):
     if request.method=='POST':
             updatedata = json.loads(request.body.decode("utf-8"))
             apart_name = updatedata['changeapartment']['aptname']
-            apart_addr = updatedata['changeapartment']['aptadd']
             apart_key = apart_name.upper()
             room_key = updatedata['changeapartment']['roomkey']
             cursor = connection.cursor()
             cursor.execute("UPDATE     demosite_keytable \
-                            SET        apart_name = %s, apart_addr = %s, apart_key_id = %s \
-                            WHERE      room_key = %s", [apart_name, apart_addr, apart_key, room_key])
+                            SET        apart_name = %s, apart_key_id = %s \
+                            WHERE      room_key = %s", [apart_name,  apart_key, room_key])
             cursor.close()
             return StreamingHttpResponse('updated')
             
@@ -228,6 +227,27 @@ def apartfeature_insert(request):
         return StreamingHttpResponse('received')
     return StreamingHttpResponse('it was GET request') 
 
+def apartfeature_update(request):
+    if request.method=='POST':
+        aptdata = json.loads(request.body.decode("utf-8")) 
+        apart_name = aptdata['newapartmentfeature']['apt_name']
+        parking = aptdata['newapartmentfeature']['parking']
+        study_room = aptdata['newapartmentfeature']['study_room']
+        lounge = aptdata['newapartmentfeature']['lounge']
+        front_desk = aptdata['newapartmentfeature']['front_desk']
+        apart_key = apart_name.upper()
+        parking = int(parking)
+        study_room = int(study_room)
+        lounge = int(lounge)
+        front_desk = int(front_desk)
+        cursor = connection.cursor()
+        cursor.execute("UPDATE     demosite_apartmentfeature\
+                        SET        parking = %s, study_room = %s, lounge = %s, front_desk = %s\
+                        WHERE       apart_key = %s", [parking, study_room, lounge, front_desk, apart_key])
+        cursor.close()
+        return StreamingHttpResponse('received')
+    return StreamingHttpResponse('it was GET request') 
+
 def apartfeature_delete(request):
     if request.method=='POST':
         aptdata = json.loads(request.body.decode("utf-8")) 
@@ -248,8 +268,8 @@ def get_rooms_count(request):
             apart_key = aptdata['roomscount']['apart_key']
             apart_key = apart_key.upper()
             cursor = connection.cursor()
-            cursor.execute("SELECT    COUNT(*) \
-                            FROM      demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
+            cursor.execute("SELECT    COUNT(1) \
+                            FROM      demosite_keytable D JOIN demosite_apartmentfeature F ON D.apart_key_id = F.apart_key \
                             GROUP BY  apart_key \
                             HAVING    apart_key = %s", [apart_key])
             result = cursor.fetchall()
@@ -269,12 +289,12 @@ def get_apart_with_parking_and_study_room(request):
             cursor = connection.cursor()
             cursor.execute("SELECT DISTINCT a.apart_name FROM \
                             (SELECT            apart_name \
-                            FROM              demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
+                            FROM              demosite_keytable D JOIN demosite_apartmentfeature F ON D.apart_key_id = F.apart_key \
                             GROUP BY          apart_key_id, apart_name, parking\
                             HAVING            parking = 1) a \
                             INNER JOIN \
                             (SELECT            apart_name \
-                            FROM              demosite_keytable k NATURAL JOIN demosite_apartmentfeature f \
+                            FROM              demosite_keytable D JOIN demosite_apartmentfeature F ON D.apart_key_id = F.apart_key\
                             GROUP BY          apart_key, apart_name, study_room \
                             HAVING            study_room = 1) b \
                             ON (a.apart_name = b.apart_name)")
@@ -780,34 +800,34 @@ def parse_json_filter(raw_input):
     output = []
     if raw_input['parking']:
         output.append(1)
-    print("reach here1")
+
     if raw_input['study_room']:
         output.append(2)
-    print("reach here2")
+
     if raw_input['lounge']:
         output.append(3)
-    print("reach here3")
+
     if raw_input['front_desk']:
         output.append(4)
-    print("reach here4")
+
     if raw_input['cover_internet_fee']:
         output.append(5)
-    print("reach here5")
+
     if raw_input['cover_electricity_fee']:
         output.append(6)
-    print("reach here6")
+
     if raw_input['private_washing_machine']:
         output.append(7)
-    print("reach here7")
+
     if raw_input['has_kitchen']:
         output.append(8)
-    print("reach here8")
+
     if raw_input['has_refrigerator']:
         output.append(9)
-    print("reach here9")
+
     if raw_input['cover_water_fee']:
         output.append(10)
-    print("reach here10")
+
     if raw_input['has_tv']:
         output.append(11)
     if raw_input['bedrooms'] != 0:
@@ -821,11 +841,9 @@ def parse_json_filter(raw_input):
 def advance_filter(request):
     if request.method=='POST':
         try:
-            Graph = FindExample("bolt://localhost", "matcha_squad", "matcha") #need to use a config file
+            Graph = FindExample("bolt://localhost", "hidden", "Matcha123") #need to use a config file
             filter = json.loads(request.body.decode("utf-8"))['Filter']
-            print("do we have filter?", filter)
             filter = parse_json_filter(filter)
-            print(filter)
             result = Graph.apply_filter(filter)
             Graph.close()
             cursor = connection.cursor()
@@ -843,6 +861,7 @@ def advance_filter(request):
                 temp_dictionary['apart_addr'] = i[1]
                 temp_dictionary['overallrating'] = (float(i[2]) + float(i[3]))/2.0
                 data.append(temp_dictionary)
+            print(data)
             return StreamingHttpResponse(json.dumps(data))
         except Exception as e:
             print(e)
@@ -853,7 +872,7 @@ def advance_filter(request):
 def similar_apart(request):
     if request.method=='POST':
         try:
-            Graph = FindExample("bolt://localhost", "matcha_squad", "matcha") #need to use a config file
+            Graph = FindExample("bolt://localhost", "hidden", "Matcha123") #need to use a config file
             filter = json.loads(request.body.decode("utf-8"))['similar_room']['room_key']
             print("the given: ", filter)
             result = Graph.apply_recon(filter)

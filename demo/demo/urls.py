@@ -54,5 +54,6 @@ urlpatterns = [
     path('test', views.test),
     path('selectforyou', views.selectforyou),
     path('advance_filter', views.advance_filter),
-    path('similar_apart', views.similar_apart)
+    path('similar_apart', views.similar_apart),
+    path('apartfeature_update', views.apartfeature_update)
 ]
